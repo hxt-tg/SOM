@@ -332,23 +332,9 @@ class SOM {
         double init_sigma;
         double learning_rate;
         double sigma;
-        // weight
 };
 
 int main() {
-    
-    for (auto t = 1; t < 1000; t += 100)
-        printf("%5.2lf\n", 5.0 / (1 + t/1000.0));
-    
-    
-    for (auto i = 0; i < 11; i++){
-    for(auto j = 0; j < 11; j++)
-    printf("%5.2lf ", neighborhood(5, 5, i, j, 5));
-    printf("\n");
-}
-return 0;
-    
-    
     make_dir("output");
     srand ((unsigned int)time(0));
     Data data = read_data_from_file(IMG_FILE);
@@ -357,14 +343,6 @@ return 0;
         transpose_inplace(data.img[i]);
     
     SOM som(data, 10, 10, 2000, 0.1);
-    /* Test random weight.
-    for (auto i = 0; i < 50; i++) {
-        Coordinate c = som.activate(data.img[i]);
-        cout << i << ": (" << c.x << ", " << c.y << ")" << endl;
-    }
-    return 0;
-    */
-    
     som.train();
     
     ofstream output("output/activate_result.csv");
@@ -376,7 +354,6 @@ return 0;
     output.close();
     
     free_data(data);
-    
     return 0;
 }
 
