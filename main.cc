@@ -6,6 +6,16 @@
 #include <ctime>
 #include <cfloat>
 
+#if defined(__linux__)
+#include <sys/stat.h>
+#include <linux/limits.h>
+#elif defined(__MINGW32__) || defined(__MINGW64__)
+#include <sys/stat.h>
+#include <climits>
+#else              // defined(_WIN32) || defined(_WIN64)
+#include <climits>
+#endif
+
 #define IMG_FILE          "mnist/SOM_MNIST_data.txt"
 #define IMG_W              28
 #define IMG_H              28
@@ -28,21 +38,26 @@ typedef struct S_Coordinate {
     unsigned int y;
 } Coordinate;
 
-// Read bytes from file and cast to type T
-template <typename T>
-T read_to(ifstream &fp, bool msb_first=true);
-template <typename T>
-T read_to(ifstream &fp, bool msb_first) {
-    size_t size = sizeof(T);
-    char buf[size + 1];
-    fp.get(buf, size + 1);
-    T val;
-    if (msb_first)
-       for (int i = 0; i < size / 2; i++)
-           swap(buf[i], buf[size-1-i]);
-    memcpy(&val, buf, sizeof(T));
-    return val;
+// ============= Ultility function ===============
+void make_dir(const char *path) {
+    int status;
+
+#if defined(__linux__)
+    status = mkdir(path, 0776);
+#elif defined(__MINGW32__) || defined(__MINGW64__)
+    status = mkdir(path);
+#else
+    std::cerr << "Unsupport platform. (Used in make_dir)" << std::endl;
+    exit(ENOTSUP);
+#endif
+
+    if (status && errno != EEXIST) {
+        std::cerr << "Cannot mkdir 'output'." << std::endl;
+        exit(errno);
+    }
 }
+// ========== end: Ultility function ============
+
 
 Data read_data_from_file(string img_file) {
     Data data = {NULL, 0};
@@ -92,7 +107,7 @@ void show_img(const Image &img, Pixel threshold=0.5) {
 
 void save_bmp(const Image &img, const char *name=NULL) {
     string file_name = "";
-    file_name += name ? name : "output";
+    file_name += name ? name : "output/image";
     file_name += ".bmp";
     ofstream fp(file_name.c_str(), std::ios::binary);
     unsigned int offset = 0x36,
@@ -256,9 +271,10 @@ class SOM {
                             diff_square += pow(weight[x][y][k] - old_weight[x][y][k], 2);
                 diff_square /= (grid_w * grid_h * VEC_SIZE);
                 double diff = sqrt(diff_square);
-                
+                save_weight();
                 cout << " Training (" << t+1 << "/" << total_step << ")  diff = " << diff << endl;
                 // Update learning_rate and sigma
+                step++;
                 learning_rate = learning_rate_func();
                 sigma = sigma_func();
             }
@@ -292,6 +308,17 @@ class SOM {
             return init_sigma / (1 + step/(total_step/2));
         }
         
+        void save_weight(const char *name=NULL) {
+            char file_name[128] = "";
+            sprintf(file_name, "%s_%03d.csv", name ? name : "output/weight", step);
+            ofstream fp(file_name);
+            for (auto x = 0; x < grid_h; x++)
+                for (auto y = 0; y < grid_w; y++)
+                    for (auto k = 0; k < VEC_SIZE; k++)
+                        fp << weight[x][y][k] << (k == VEC_SIZE - 1 ? "\n" : ",");
+            fp.close();
+        }
+        
     private:
         Data data;
         unsigned int total_step;
@@ -319,15 +346,16 @@ void test() {
 }
 
 int main() {
+    make_dir("output");
     srand ((unsigned int)time(0));
     Data data = read_data_from_file(IMG_FILE);
     for (auto i = 0; i < NUM_IMG; i++)
         transpose_inplace(data.img[i]);
     
-    SOM som(data, 10, 10, 200, 0.5);
+    SOM som(data, 10, 10, 20, 0.5);
     som.train();
     
-    ofstream output("activate_result.csv");
+    ofstream output("output/activate_result.csv");
     output << "data_idx,bmu_x,bmu_y" << endl;
     for (auto i = 0; i < NUM_IMG; i++) {
         Coordinate bmu = som.activate(data.img[i]);
