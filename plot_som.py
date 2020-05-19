@@ -16,7 +16,7 @@ def plot_and_save(iter_num):
     plt.savefig(f'images/weight_{iter_num:03d}.png')
     plt.close()
 
-for i in list(range(0, 50, 1)):
-# for i in list(range(50, 2000, 50)):
+#for i in list(range(0, 50, 1)):
+for i in list(range(50, 2000, 50)):
     plot_and_save(i)
     print(f'Save: {i}')

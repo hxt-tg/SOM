@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+GRID_W, GRID_H = 10, 10
+
 with open('mnist/mnist_np.npy', 'rb') as f:
     data = np.load(f)
 
-data = data[:100, :]
 img = data[0].reshape(-1, 28)
 
 ##plt.imshow(img, cmap='gray')
@@ -21,9 +22,9 @@ print(win_coor)
 
 plt.figure(figsize=(5, 5), facecolor='white')
 cnt = 0
-for j in range(10):  # images mosaic
-    for i in range(10):
-        plt.subplot(10, 10, cnt+1, frameon=False,  xticks=[],  yticks=[])
+for j in range(GRID_W):  # images mosaic
+    for i in range(GRID_H):
+        plt.subplot(GRID_H, GRID_W, cnt+1, frameon=False,  xticks=[],  yticks=[])
         if (i, j) in win_coor:
             plt.imshow(data[win_coor[(i, j)]].reshape(-1, 28).T,
                        cmap='Greys', interpolation='nearest')

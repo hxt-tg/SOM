@@ -182,21 +182,17 @@ double norm(const Image &a) {
 
 double distance(const Image &a, const Image &b) {
     // Euclidean distance
-    Image result;
-    sub(result, a, b);
-    return norm(result);
-}
-
-double gaussian(double val, double sigma) {
-    return exp(-val/(2 * sigma * sigma));
+    double sum = 0;
+    for (auto i = 0; i < VEC_SIZE; i++)
+        sum += pow(a[i] - b[i], 2);
+    return sum;
 }
 
 double random(double low, double high) {
     return double(rand()) / (RAND_MAX/(high - low)) + low;
 }
 
-double neighborhood(unsigned int bmu_x, unsigned int bmu_y, 
-               unsigned int x, unsigned int y, double sigma) {
+double neighborhood(int bmu_x, int bmu_y, int x, int y, double sigma) {
     return exp(-(pow(bmu_x - x, 2) + pow(bmu_y - y, 2)) / (2 * pow(sigma, 2)));
 }
 
@@ -257,14 +253,12 @@ class SOM {
                     
                     for (auto x = 0; x < grid_h; x++)
                         for (auto y = 0; y < grid_w; y++) {
-                            Image &w = weight[x][y];
                             Image result;
-                            sub(result, img, w);
+                            sub(result, img, old_weight[x][y]);
                             double factor = learning_rate * neighborhood(bmu_xy.x, bmu_xy.y, x, y, sigma);
                             for (auto i = 0; i < VEC_SIZE; i++)
-                                w[i] += factor * result[i];
+                                weight[x][y][i] = old_weight[x][y][i] + factor * result[i];
                         }
-                    // End of train one image
                 }
                 // Calculate difference of weight
                 double diff_square = 0;
@@ -274,8 +268,11 @@ class SOM {
                             diff_square += pow(weight[x][y][k] - old_weight[x][y][k], 2);
                 diff_square /= (grid_w * grid_h * VEC_SIZE);
                 double diff = sqrt(diff_square);
-                cout << " Training (" << t+1 << "/" << total_step << ")  diff = " << diff << endl;
+                cout << " Training (" << t+1 << "/" << total_step << ")  diff = " << diff 
+                     << "  sigma=" << sigma << "  eta=" << learning_rate << endl;
                 
+                
+    
                 step++;
                 if (step < 50 || step % 50 == 0)
                    save_weight();
@@ -310,7 +307,7 @@ class SOM {
         }
         
         double sigma_func() {
-            return init_sigma / (1 + step/(300* total_step/2));
+            return init_sigma/2 / (1 + step/(total_step/4));
         }
         
         void save_weight(const char *name=NULL) {
@@ -339,13 +336,35 @@ class SOM {
 };
 
 int main() {
+    
+    for (auto t = 1; t < 1000; t += 100)
+        printf("%5.2lf\n", 5.0 / (1 + t/1000.0));
+    
+    
+    for (auto i = 0; i < 11; i++){
+    for(auto j = 0; j < 11; j++)
+    printf("%5.2lf ", neighborhood(5, 5, i, j, 5));
+    printf("\n");
+}
+return 0;
+    
+    
     make_dir("output");
     srand ((unsigned int)time(0));
     Data data = read_data_from_file(IMG_FILE);
+    
     for (auto i = 0; i < NUM_IMG; i++)
         transpose_inplace(data.img[i]);
     
     SOM som(data, 10, 10, 2000, 0.1);
+    /* Test random weight.
+    for (auto i = 0; i < 50; i++) {
+        Coordinate c = som.activate(data.img[i]);
+        cout << i << ": (" << c.x << ", " << c.y << ")" << endl;
+    }
+    return 0;
+    */
+    
     som.train();
     
     ofstream output("output/activate_result.csv");
