@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+*.bmp
+/mnist
+*.layout
+*.exe
+*.csv
