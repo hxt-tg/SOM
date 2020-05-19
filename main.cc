@@ -4,31 +4,29 @@
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
+#include <cfloat>
 
-#define TST_LBL_FILE      "mnist/t10k-labels.idx1-ubyte"
-#define TST_IMG_FILE      "mnist/t10k-images.idx3-ubyte"
-#define TRN_LBL_FILE      "mnist/train-labels.idx1-ubyte"
-#define TRN_IMG_FILE      "mnist/train-images.idx3-ubyte"
-#define LBL_MAGIC          2049
-#define IMG_MAGIC          2051
+#define IMG_FILE          "mnist/SOM_MNIST_data.txt"
 #define IMG_W              28
 #define IMG_H              28
 #define VEC_SIZE           (IMG_W * IMG_H)
 #define IMG_MAX_VAL        255
+#define NUM_IMG            5000
 
 using namespace std;
 
-typedef unsigned char Label;
 typedef double Pixel;
 typedef Pixel Image[VEC_SIZE];    /* Image is a vector. */
 
-typedef struct S_Data{
-    Label* lbl;
+typedef struct S_Data {
     Image* img;
     unsigned int size;
 } Data;
 
-
+typedef struct S_Coordinate {
+    unsigned int x;
+    unsigned int y;
+} Coordinate;
 
 // Read bytes from file and cast to type T
 template <typename T>
@@ -46,42 +44,19 @@ T read_to(ifstream &fp, bool msb_first) {
     return val;
 }
 
-Data read_data_from_file(string lbl_file, string img_file) {
-    Data data = {NULL, NULL, 0};
-    // Read labels, check magic and store n_items
-    ifstream f_lbl(lbl_file.c_str(), std::ios::binary);
-    unsigned int lbl_magic = read_to<unsigned int>(f_lbl);
-    unsigned int n_items = read_to<unsigned int>(f_lbl);
-    if (lbl_magic != LBL_MAGIC)
-       throw "Magic number error in label file.";
-       
-    data.size = n_items;
-    data.lbl = new Label[n_items];
+Data read_data_from_file(string img_file) {
+    Data data = {NULL, 0};
+    ifstream fp(img_file.c_str());
+    data.size = NUM_IMG;
+    data.img = new Image[NUM_IMG];
     
-    for (auto i = 0; i < n_items; i++)
-        data.lbl[i] = f_lbl.get();
-    f_lbl.close();
-    
-    // Read images, check magic/n_items/img_w/img_h
-    ifstream f_img(img_file.c_str(), std::ios::binary);
-    unsigned int img_magic = read_to<unsigned int>(f_img);
-    n_items = read_to<unsigned int>(f_img);
-    unsigned int img_w = read_to<unsigned int>(f_img);
-    unsigned int img_h = read_to<unsigned int>(f_img);
-    if (img_magic != IMG_MAGIC)
-       throw "Magic number error in image file.";
-    if (n_items != data.size)
-       throw "Size of image and label doesn't match.";
-    if (img_w != IMG_W || img_h != IMG_H)
-       throw "Invalid image width or height.";
-    
-    data.img = new Image[n_items];
-    
-    for (auto i = 0; i < n_items; i++)
-        for (auto j = 0; j < VEC_SIZE; j++)
-            data.img[i][j] = (double)f_img.get();
-        
-    f_img.close();
+    for (auto i = 0; i < VEC_SIZE; i++) {
+        for (auto j = 0; j < NUM_IMG; j++)
+            fp >> data.img[j][i];
+        cout << "\rDim: " << i;
+    }
+    cout << endl;
+    fp.close();
     
     cout << "Successfully read " << data.size << " images and labels." << endl;
     return data;
@@ -89,27 +64,30 @@ Data read_data_from_file(string lbl_file, string img_file) {
 
 void normalize_image(Image &img) {
     for (auto i = 0; i < VEC_SIZE; i++)
-        i /= (double)IMG_MAX_VAL;
+        img[i] /= (double)IMG_MAX_VAL;
 }
 
 void denormalize_image(Image &img) {
     for (auto i = 0; i < VEC_SIZE; i++)
-        i *= (double)IMG_MAX_VAL;
+        img[i] *= (double)IMG_MAX_VAL;
+}
+
+Image &copy_image(Image &result, const Image &src) {
+    for (auto i = 0; i < VEC_SIZE; i++)
+        result[i] = src[i];
+    return result;
 }
 
 void free_data(Data &data) {
-    delete [] data.lbl;
     delete [] data.img;
-    data.lbl = NULL;
     data.img = NULL;
     data.size = 0;
 }
 
-void show_img(const Data &data, const unsigned int idx, Pixel threshold=127.0) {
+void show_img(const Image &img, Pixel threshold=0.5) {
     for (auto i = 0; i < VEC_SIZE; i++)
-        cout << " #"[data.img[idx][i] > threshold] 
+        cout << " #"[img[i] > threshold] 
              << ((i + 1) % IMG_W == 0 ? "\n" : "");
-    cout << "     (label = " << (int)data.lbl[idx] << ")" << endl;
 }
 
 void save_bmp(const Image &img, const char *name=NULL) {
@@ -164,6 +142,13 @@ double dot(const Image &a, const Image &b) {
     return sum;
 }
 
+Image &transpose_inplace(Image &a) {
+    for (auto i = 0; i < IMG_H; i++)
+        for (auto j = i; j < IMG_W; j++)
+            swap(a[i * IMG_W + j], a[j * IMG_H + i]);
+    return a;
+}
+
 Image &sub(Image &result, const Image &a, const Image &b) {
     for (auto i = 0; i < VEC_SIZE; i++)
         result[i] = a[i] - b[i];
@@ -182,6 +167,10 @@ double distance(const Image &a, const Image &b) {
     Image result;
     sub(result, a, b);
     return norm(result);
+}
+
+double gaussian(double val, double sigma) {
+    return exp(-val/(2 * sigma * sigma));
 }
 
 double random(double low, double high) {
@@ -206,8 +195,8 @@ class SOM {
             this->step = 0;
             this->data = data;
             this->total_step = total_step;
-            this->init_learning_rate = init_learning_rate;
-            this->init_sigma = sqrt(0.5*grid_h*grid_h + 0.5*grid_w*grid_w);
+            this->learning_rate = this->init_learning_rate = init_learning_rate;
+            this->sigma = this->init_sigma = sqrt(0.5*grid_h*grid_h + 0.5*grid_w*grid_w);
             //this->lambda = lambda;
             
             // init: Random pixels to weight
@@ -224,7 +213,75 @@ class SOM {
         }
         
         void train() {
+            unsigned int indices[NUM_IMG];
+            for (int i = 0; i < NUM_IMG; i++)
+                indices[i] = i;
+                
+            // Create old weight to store a copy of weight from last step
+            Image **old_weight = new Image *[grid_h];
+            for (auto i = 0; i < grid_h; i++)
+                old_weight[i] = new Image[grid_w];
             
+            for (int t = 0; t < total_step; t++) {
+                // shuffle indices
+                for (int i = NUM_IMG - 1; i > 0; i--)
+                    swap(indices[i], indices[rand() % i]);
+                    
+                // Backup old weight
+                for (auto x = 0; x < grid_h; x++)
+                    for (auto y = 0; y < grid_w; y++)
+                        copy_image(old_weight[x][y], weight[x][y]);
+                    
+                for (int idx_i = 0; idx_i < NUM_IMG; idx_i++) {
+                    Image &img = data.img[indices[idx_i]];
+                    // Train one image below:
+                    Coordinate bmu_xy = activate(img);
+                    
+                    for (auto x = 0; x < grid_h; x++)
+                        for (auto y = 0; y < grid_w; y++) {
+                            Image &w = weight[x][y];
+                            Image result;
+                            sub(result, img, w);
+                            double factor = learning_rate * neighborhood(bmu_xy.x, bmu_xy.y, x, y, sigma);
+                            for (auto i = 0; i < VEC_SIZE; i++)
+                                w[i] += factor * result[i];
+                        }
+                    // End of train one image
+                }
+                // Calculate difference of weight
+                double diff_square = 0;
+                for (auto x = 0; x < grid_h; x++)
+                    for (auto y = 0; y < grid_w; y++)
+                        for (auto k = 0; k < VEC_SIZE; k++)
+                            diff_square += pow(weight[x][y][k] - old_weight[x][y][k], 2);
+                diff_square /= (grid_w * grid_h * VEC_SIZE);
+                double diff = sqrt(diff_square);
+                
+                cout << " Training (" << t+1 << "/" << total_step << ")  diff = " << diff << endl;
+                // Update learning_rate and sigma
+                learning_rate = learning_rate_func();
+                sigma = sigma_func();
+            }
+            // Free old_weight
+            for (auto i = 0; i < grid_h; i++)
+                delete [] old_weight[i];
+            delete [] old_weight;
+        }
+        
+        Coordinate activate(const Image &img) {
+            unsigned int bmu_x, bmu_y;
+            double min_distance = DBL_MAX;
+            // Calculate activated coor (BMU coordinate)
+            for (auto x = 0; x < grid_h; x++)
+                for (auto y = 0; y < grid_w; y++) {
+                    double d = distance(weight[x][y], img);
+                    if (d < min_distance) {
+                        min_distance = d;
+                        bmu_x = x;
+                        bmu_y = y;
+                    }
+                }
+            return {bmu_x, bmu_y};
         }
         
         double learning_rate_func() {
@@ -244,15 +301,40 @@ class SOM {
         Image **weight;
         double init_learning_rate;
         double init_sigma;
+        double learning_rate;
+        double sigma;
         // weight
 };
 
+void test() {
+    unsigned int indices[6];
+    for (int i = 0; i < 6; i++)
+        indices[i] = i;
+    // shuffle
+    for (int i = 6 - 1; i > 0; i--)
+        swap(indices[i], indices[rand() % i]);
+    for (int i = 0; i < 6; i++)
+        cout << indices[i] << " ";
+    cout << endl;
+}
+
 int main() {
     srand ((unsigned int)time(0));
-    Data data = read_data_from_file(TST_LBL_FILE, TST_IMG_FILE);
-    cout << norm(data.img[0]);
-    SOM som(data, 2, 2, 200, 0.1);
-    save_bmp(data.img[1]);
+    Data data = read_data_from_file(IMG_FILE);
+    for (auto i = 0; i < NUM_IMG; i++)
+        transpose_inplace(data.img[i]);
+    
+    SOM som(data, 10, 10, 200, 0.5);
+    som.train();
+    
+    ofstream output("activate_result.csv");
+    output << "data_idx,bmu_x,bmu_y" << endl;
+    for (auto i = 0; i < NUM_IMG; i++) {
+        Coordinate bmu = som.activate(data.img[i]);
+        output << i << "," << bmu.x << "," << bmu.y << endl;
+    }
+    output.close();
+    
     free_data(data);
     
     return 0;
