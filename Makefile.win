@@ -10,8 +10,8 @@ LIBS     = -L"C:/Program Files/Dev-Cpp/MinGW64/x86_64-w64-mingw32/lib32" -static
 INCS     = -I"C:/Program Files/Dev-Cpp/MinGW64/x86_64-w64-mingw32/include"
 CXXINCS  = -I"C:/Program Files/Dev-Cpp/MinGW64/x86_64-w64-mingw32/include"
 BIN      = som.exe
-CXXFLAGS = $(CXXINCS) -m32 -std=c++11
-CFLAGS   = $(INCS) -m32 -std=c++11
+CXXFLAGS = $(CXXINCS) -Ofast -m32 -std=c++11
+CFLAGS   = $(INCS) -Ofast -m32 -std=c++11
 RM       = rm -f
 
 .PHONY: all all-before all-after clean clean-custom

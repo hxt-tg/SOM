@@ -22,6 +22,9 @@
 #define VEC_SIZE           (IMG_W * IMG_H)
 #define IMG_MAX_VAL        255
 #define NUM_IMG            5000
+#define NUM_IMG_TRAIN      5000
+
+#define max(x, y) ((x) > (y) ? (x) : (y))
 
 using namespace std;
 
@@ -228,18 +231,18 @@ class SOM {
         }
         
         void train() {
-            unsigned int indices[NUM_IMG];
-            for (int i = 0; i < NUM_IMG; i++)
+            unsigned int indices[NUM_IMG_TRAIN];
+            for (int i = 0; i < NUM_IMG_TRAIN; i++)
                 indices[i] = i;
                 
             // Create old weight to store a copy of weight from last step
             Image **old_weight = new Image *[grid_h];
             for (auto i = 0; i < grid_h; i++)
                 old_weight[i] = new Image[grid_w];
-            
+            save_weight();
             for (int t = 0; t < total_step; t++) {
                 // shuffle indices
-                for (int i = NUM_IMG - 1; i > 0; i--)
+                for (int i = NUM_IMG_TRAIN - 1; i > 0; i--)
                     swap(indices[i], indices[rand() % i]);
                     
                 // Backup old weight
@@ -247,7 +250,7 @@ class SOM {
                     for (auto y = 0; y < grid_w; y++)
                         copy_image(old_weight[x][y], weight[x][y]);
                     
-                for (int idx_i = 0; idx_i < NUM_IMG; idx_i++) {
+                for (int idx_i = 0; idx_i < NUM_IMG_TRAIN; idx_i++) {
                     Image &img = data.img[indices[idx_i]];
                     // Train one image below:
                     Coordinate bmu_xy = activate(img);
@@ -271,10 +274,12 @@ class SOM {
                             diff_square += pow(weight[x][y][k] - old_weight[x][y][k], 2);
                 diff_square /= (grid_w * grid_h * VEC_SIZE);
                 double diff = sqrt(diff_square);
-                save_weight();
                 cout << " Training (" << t+1 << "/" << total_step << ")  diff = " << diff << endl;
-                // Update learning_rate and sigma
+                
                 step++;
+                if (step < 50 || step % 50 == 0)
+                   save_weight();
+                // Update learning_rate and sigma
                 learning_rate = learning_rate_func();
                 sigma = sigma_func();
             }
@@ -305,7 +310,7 @@ class SOM {
         }
         
         double sigma_func() {
-            return init_sigma / (1 + step/(total_step/2));
+            return init_sigma / (1 + step/(300* total_step/2));
         }
         
         void save_weight(const char *name=NULL) {
@@ -322,7 +327,7 @@ class SOM {
     private:
         Data data;
         unsigned int total_step;
-        unsigned int step;
+        int step;
         unsigned int grid_w;
         unsigned int grid_h;
         Image **weight;
@@ -333,18 +338,6 @@ class SOM {
         // weight
 };
 
-void test() {
-    unsigned int indices[6];
-    for (int i = 0; i < 6; i++)
-        indices[i] = i;
-    // shuffle
-    for (int i = 6 - 1; i > 0; i--)
-        swap(indices[i], indices[rand() % i]);
-    for (int i = 0; i < 6; i++)
-        cout << indices[i] << " ";
-    cout << endl;
-}
-
 int main() {
     make_dir("output");
     srand ((unsigned int)time(0));
@@ -352,12 +345,12 @@ int main() {
     for (auto i = 0; i < NUM_IMG; i++)
         transpose_inplace(data.img[i]);
     
-    SOM som(data, 10, 10, 20, 0.5);
+    SOM som(data, 10, 10, 2000, 0.1);
     som.train();
     
     ofstream output("output/activate_result.csv");
     output << "data_idx,bmu_x,bmu_y" << endl;
-    for (auto i = 0; i < NUM_IMG; i++) {
+    for (auto i = 0; i < NUM_IMG_TRAIN; i++) {
         Coordinate bmu = som.activate(data.img[i]);
         output << i << "," << bmu.x << "," << bmu.y << endl;
     }
