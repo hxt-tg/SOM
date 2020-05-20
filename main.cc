@@ -308,7 +308,7 @@ class SOM {
         }
         
         double sigma_func() {
-            return init_sigma * exp(-step/(total_step/(log10(init_sigma))));
+            return 0.25 * init_sigma * exp(-step/(total_step/(log10(init_sigma))));
             //return init_sigma/2 / (1 + step/(total_step/4));
         }
         
