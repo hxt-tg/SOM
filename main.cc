@@ -22,7 +22,7 @@
 #define VEC_SIZE           (IMG_W * IMG_H)
 #define IMG_MAX_VAL        255
 #define NUM_IMG            5000
-#define NUM_IMG_TRAIN      5000
+#define NUM_IMG_TRAIN      100
 
 #define max(x, y) ((x) > (y) ? (x) : (y))
 
@@ -303,11 +303,13 @@ class SOM {
         }
         
         double learning_rate_func() {
-            return init_learning_rate / (1 + step/(total_step/2));
+            return init_learning_rate * exp(-step/(total_step/2.0));
+            //return init_learning_rate / (1 + step/(total_step/2));
         }
         
         double sigma_func() {
-            return init_sigma/2 / (1 + step/(total_step/4));
+            return init_sigma * exp(-step/(total_step/(log10(init_sigma))));
+            //return init_sigma/2 / (1 + step/(total_step/4));
         }
         
         void save_weight(const char *name=NULL) {
@@ -342,7 +344,7 @@ int main() {
     for (auto i = 0; i < NUM_IMG; i++)
         transpose_inplace(data.img[i]);
     
-    SOM som(data, 10, 10, 2000, 0.1);
+    SOM som(data, 30, 30, 2000, 0.2);
     som.train();
     
     ofstream output("output/activate_result.csv");
