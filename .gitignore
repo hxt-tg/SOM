@@ -37,6 +37,5 @@
 *.exe
 *.csv
 
-*.m
 /images
 

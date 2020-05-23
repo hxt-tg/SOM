@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-GRID_H, GRID_W = 30, 30
+GRID_H, GRID_W = 13, 13
 
 def plot_and_save(iter_num):
     data = np.loadtxt(f'output/weight_{iter_num:03d}.csv', delimiter=',')
@@ -19,6 +19,7 @@ def plot_and_save(iter_num):
     plt.close()
 
 #for i in list(range(0, 50, 1)):
-for i in list(range(50, 2000, 50)):
+for i in list(range(4000, 3050, -50)):
+#for i in list(range(50, 2000, 50)):
     plot_and_save(i)
     print(f'Save: {i}')

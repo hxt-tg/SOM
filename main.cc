@@ -22,7 +22,7 @@
 #define VEC_SIZE           (IMG_W * IMG_H)
 #define IMG_MAX_VAL        255
 #define NUM_IMG            5000
-#define NUM_IMG_TRAIN      100
+#define NUM_IMG_TRAIN      500
 
 #define max(x, y) ((x) > (y) ? (x) : (y))
 
@@ -344,7 +344,7 @@ int main() {
     for (auto i = 0; i < NUM_IMG; i++)
         transpose_inplace(data.img[i]);
     
-    SOM som(data, 30, 30, 2000, 0.2);
+    SOM som(data, 13, 13, 4000, 0.5);
     som.train();
     
     ofstream output("output/activate_result.csv");
